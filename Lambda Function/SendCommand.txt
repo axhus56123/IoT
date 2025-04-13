@@ -1,0 +1,61 @@
+import { IoTDataPlaneClient, PublishCommand } from "@aws-sdk/client-iot-data-plane";
+
+const iotClient = new IoTDataPlaneClient({ region: "eu-west-3" });
+
+export const handler = async (event) => {
+    console.log("Received event:", JSON.stringify(event, null, 2));
+
+    if (event.httpMethod === "OPTIONS") {
+        return {
+            statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            body: ""
+        };
+    }
+
+    try {
+        const body = JSON.parse(event.body);
+        const { command } = body;
+
+        if (!command) {
+            return {
+                statusCode: 400,
+                headers: {
+                    "Access-Control-Allow-Origin": "*"
+                },
+                body: JSON.stringify({ message: "Missing command field" })
+            };
+        }
+
+        // 發送 MQTT 指令
+        const mqttTopic = "iot/mkr1010/control";
+        const payload = JSON.stringify({ command });
+
+        await iotClient.send(new PublishCommand({
+            topic: mqttTopic,
+            qos: 1,
+            payload: payload
+        }));
+
+        return {
+            statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*"
+            },
+            body: JSON.stringify({ message: `Command "${command}" sent successfully` })
+        };
+    } catch (error) {
+        console.error("Error sending MQTT command:", error);
+        return {
+            statusCode: 500,
+            headers: {
+                "Access-Control-Allow-Origin": "*"
+            },
+            body: JSON.stringify({ message: "Internal Server Error", error: error.message })
+        };
+    }
+};

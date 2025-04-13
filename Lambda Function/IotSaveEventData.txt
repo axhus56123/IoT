@@ -1,0 +1,74 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { PutCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+
+// 初始化 DynamoDB 客戶端
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client);
+
+const TABLE_NAME = "IoTCatalog"; // 替換成你的 DynamoDB 表名稱
+
+export const handler = async (event) => {
+    console.log("Received raw event:", JSON.stringify(event, null, 2));
+
+    let parsedEvent;
+    try {
+        parsedEvent = typeof event === "string" ? JSON.parse(event) : event;
+        if (parsedEvent.body) {
+            parsedEvent = JSON.parse(parsedEvent.body); // API Gateway 傳來的可能是字串格式
+        }
+    } catch (error) {
+        console.error("Error parsing event:", error);
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: "Invalid JSON format" }),
+        };
+    }
+
+    console.log("Parsed event:", JSON.stringify(parsedEvent, null, 2));
+
+    // 檢查 serialNumber 是否存在
+    if (!parsedEvent.serialNumber) {
+        console.error("Error: Missing serialNumber field in the event");
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: "Missing serialNumber field" }),
+        };
+    }
+
+    const timeStamp = new Date().toISOString(); // 確保 timeStamp 為字串
+
+    // 準備要存入 DynamoDB 的項目
+    const item = {
+        serialNumber: parsedEvent.serialNumber, // 確保是字串
+        timeStamp: timeStamp, // DynamoDB 需要 S (String) 類型
+        sys: parsedEvent.sys || "unknown", // 修正字段名稱
+        ref: parsedEvent.ref ? JSON.stringify(parsedEvent.ref) : "{}", // 轉為字串儲存
+        light: parsedEvent.light ? JSON.stringify(parsedEvent.light) : "{}",
+        hvac: parsedEvent.hvac ? JSON.stringify(parsedEvent.hvac) : "{}",
+        occ: parsedEvent.occ ? JSON.stringify(parsedEvent.occ) : "{}",
+    };
+
+    try {
+        // 將資料寫入 DynamoDB
+        await docClient.send(
+            new PutCommand({
+                TableName: TABLE_NAME,
+                Item: item,
+            })
+        );
+
+        console.log("Data successfully stored:", item);
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ message: "Data stored successfully", item }),
+        };
+    } catch (error) {
+        console.error("Error storing data:", error);
+
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: "Internal Server Error", error }),
+        };
+    }
+};

@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>IoT Dashboard - Group 2</title>
+
+  <!-- Include Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Avoid favicon.ico 403 error -->
+  <link rel="icon" href="data:,">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      background-color: #f4f4f4;
+      color: #333;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 20px 0;
+      font-size: 24px;
+    }
+
+    .dashboard-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 90%;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    /* Status Cards */
+    .status-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      width: 100%;
+    }
+
+    .status-card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    .status-card.double-wide {
+      grid-column: span 2;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-card h2 {
+      font-size: 1rem;
+      margin-bottom: 8px;
+      color: #666;
+    }
+
+    .status-value {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #007BFF;
+      min-height: 1.4rem; /* Keep height to avoid jumping when text changes */
+    }
+
+    /* Control Section */
+    .control-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .toggle-switch {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      background: white;
+      padding: 8px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      transition: background 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .toggle-switch:hover {
+      background: #ddd;
+    }
+
+    .toggle-switch span {
+      margin-left: 10px;
+      font-size: 1rem;
+    }
+
+    /* Threshold Control Section */
+    .threshold-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .threshold-control {
+      display: flex;
+      align-items: center;
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      gap: 10px;
+      white-space: nowrap;
+    }
+
+    .threshold-control label {
+      font-size: 1rem;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .threshold-control input[type="text"] {
+      padding: 5px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-bottom: 5px;
+      width: 80%;
+      text-align: center;
+    }
+
+    .threshold-control button {
+      padding: 8px 15px;
+      border: none;
+      background: #007BFF;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .threshold-control button:hover {
+      background: #0056b3;
+    }
+
+    /* Chart Section */
+    .chart-container {
+      width: 100%;
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    canvas {
+      max-width: 100%;
+    }
+
+    /* Historical Data Table */
+    .table-container {
+      width: 100%;
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 auto;
+      min-width: 600px;
+    }
+
+    thead {
+      background-color: #007BFF;
+      color: #fff;
+    }
+
+    th, td {
+      padding: 12px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    th {
+      font-weight: normal;
+    }
+
+    .download-btn {
+      margin-bottom: 10px;
+      padding: 8px 15px;
+      border: none;
+      background: #28a745;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .download-btn:hover {
+      background: #218838;
+    }
+
+    /* 手機螢幕時 (max-width: 600px)，改為單欄顯示 */
+    @media (max-width: 600px) {
+      .status-cards {
+        grid-template-columns: 1fr;
+      }
+      .status-card.double-wide {
+        grid-column: span 1;
+      }
+
+      .threshold-panel {
+        grid-template-columns: 1fr;
+      }
+      .threshold-control {
+        width: 100%;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>IoT Dashboard - Group 2</h1>
+
+  <div class="dashboard-container">
+    <!-- Status Cards -->
+    <div class="status-cards">
+      <div class="status-card">
+        <h2>System</h2>
+        <div class="status-value" id="statusSystem">-</div>
+      </div>
+      <div class="status-card">
+        <h2>Refrigeration Door</h2>
+        <div class="status-value" id="statusRef">-</div>
+      </div>
+      <div class="status-card">
+        <h2>Lighting</h2>
+        <div class="status-value" id="statusLight">-</div>
+      </div>
+      <div class="status-card">
+        <h2>HVAC Temp</h2>
+        <div class="status-value" id="statusHvac">-</div>
+      </div>
+      <div class="status-card">
+        <h2>Occupancy</h2>
+        <div class="status-value" id="statusOcc">-</div>
+      </div>
+
+      <!-- Connection Status (double-wide) -->
+      <div class="status-card double-wide">
+        <h2>Connection Status</h2>
+        <div class="status-value" id="statusConnection">-</div>
+      </div>
+
+      <!-- Action Status (double-wide) -->
+      <div class="status-card double-wide">
+        <h2>Action Status</h2>
+        <div class="status-value" id="statusAction">-</div>
+      </div>
+
+      <!-- Power Consumption Card -->
+      <div class="status-card">
+        <h2>Power Consumption</h2>
+        <div class="status-value" id="statusPower">-</div>
+      </div>
+    </div>
+
+    <!-- Control Buttons (可選：若需手動觸發) -->
+    <div class="control-panel">
+      <div class="toggle-switch" onclick="sendToggleCommand('toggleSystem')">🖥️ <span>Toggle System</span></div>
+      <div class="toggle-switch" onclick="sendToggleCommand('toggleDoor')">🚪 <span>Toggle Refrigerator Door</span></div>
+      <div class="toggle-switch" onclick="sendToggleCommand('togglelight')">💡 <span>Toggle Lighting</span></div>
+      <div class="toggle-switch" onclick="sendToggleCommand('toggleAC')">❄️ <span>Toggle Cooler</span></div>
+      <div class="toggle-switch" onclick="sendToggleCommand('toggleHeater')">🔥 <span>Toggle Heater</span></div>
+      <div class="toggle-switch" onclick="sendToggleCommand('toggleOcc')">🚨 <span>Toggle Buzzer</span></div>
+    </div>
+
+    <!-- Threshold Control Section -->
+    <div class="threshold-panel">
+      <div class="threshold-control">
+        <label for="hvacThInput">HVAC Threshold</label>
+        <input type="text" id="hvacThInput" placeholder="Ex: 28,18 (max,min)">
+        <button onclick="updateThreshold('hvac', 'hvacThInput')">Update</button>
+      </div>
+      <div class="threshold-control">
+        <label for="lightThInput">Light Threshold</label>
+        <input type="text" id="lightThInput" placeholder="Ex: 50">
+        <button onclick="updateThreshold('light', 'lightThInput')">Update</button>
+      </div>
+      <div class="threshold-control">
+        <label for="occThInput">Occupancy Threshold</label>
+        <input type="text" id="occThInput" placeholder="Ex: 100">
+        <button onclick="updateThreshold('occ', 'occThInput')">Update</button>
+      </div>
+      <div class="threshold-control">
+        <label for="refThInput">Refrigeration Door Th</label>
+        <input type="text" id="refThInput" placeholder="Ex: 1">
+        <button onclick="updateThreshold('ref', 'refThInput')">Update</button>
+      </div>
+    </div>
+
+    <!-- Chart: newest data on the right -->
+    <div class="chart-container">
+      <canvas id="chartHvac"></canvas>
+    </div>
+
+    <!-- Historical Data Table (with "Download CSV" button) -->
+    <div class="table-container">
+      <button class="download-btn" onclick="downloadCSV()">Download All Data</button>
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>System</th>
+            <th>Refrigeration Door</th>
+            <th>Lighting</th>
+            <th>Occupancy</th>
+            <th>HVAC Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dynamically inserted by JavaScript -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // =============================
+    //  1. 變數與設定
+    // =============================
+
+    const apiUrl = 'https://yquxl9h661.execute-api.eu-west-3.amazonaws.com/dev/iotdata';
+    const controlUrl = 'https://kv9g48ud56.execute-api.eu-west-3.amazonaws.com/prod/send-command';
+
+    // 各裝置的功率(kW)，以及固定 Refrigeration 的 280kW
+    const baseRefrigeration = 280; // 一開始就顯示的固定耗電
+    const devicePower = {
+      light: 2,
+      cooler: 250,
+      heater: 350
+    };
+
+    // 紀錄裝置的前一次狀態(後端回傳)
+    let lastDeviceStates = {
+      light: false,
+      cooler: false,
+      heater: false
+    };
+
+    // 目前顯示在前端的即時功率(初始先為 280kW)
+    let currentPower = baseRefrigeration;
+
+    // Chart instance
+    let hvacChart;
+    let lastTimestamp = null; // Record the timestamp of the latest data
+
+    // ===========================
+    // 2. 從後端抓取資料並更新 UI
+    // ===========================
+    async function fetchDataAndUpdate() {
+      try {
+        document.getElementById("statusAction").textContent = "Fetching data...";
+
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}`);
+        }
+
+        document.getElementById("statusConnection").textContent = "Connection successful";
+        document.getElementById("statusAction").textContent = "";
+
+        const data = await response.json();
+        if (!data.length) return;
+
+        // 只保留最近 20 筆
+        const latestData = data.slice(0, 20);
+
+        // 更新歷史表格
+        updateHistoryTable(latestData);
+
+        // 最新一筆
+        const latest = latestData[0];
+
+        // Update status cards（直接顯示後端的 status）
+        document.getElementById('statusSystem').textContent = latest.sys || 'Unknown';
+        document.getElementById('statusRef').textContent = latest.ref?.status || '-';
+        document.getElementById('statusLight').textContent = latest.light?.status || '-';
+        document.getElementById('statusHvac').textContent =
+          `${latest.hvac?.val ?? '-'}°C (${latest.hvac?.status ?? '-'})`;
+        document.getElementById('statusOcc').textContent = latest.occ?.status || '-';
+
+        // 根據後端的 status 判斷裝置是否「開」
+        //  例如 light.status === 'ON'，hvac.status === 'COOLING' or 'HEATING'
+        const newStates = {
+          light:  (latest.light?.status === 'on'),
+          cooler: (latest.hvac?.status === 'AC'),
+          heater: (latest.hvac?.status === 'heater')
+        };
+
+        // 根據新舊狀態差異，計算 Power Consumption 並執行動畫
+        updatePowerConsumption(newStates);
+
+        // 更新 HVAC 圖表
+        updateHvacChart(latestData);
+
+        // 記錄最新的 timestamp
+        lastTimestamp = latest.timeStamp;
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        document.getElementById("statusConnection").textContent = "Connection failed";
+        document.getElementById("statusAction").textContent = "";
+      }
+    }
+
+    // ===========================
+    // 3. 更新歷史表格 (同樣顯示 status)
+    // ===========================
+    function updateHistoryTable(data) {
+      const tableBody = document.querySelector('#historyTable tbody');
+      tableBody.innerHTML = ''; // 清空
+
+      data.forEach(item => {
+        const row = document.createElement('tr');
+
+        // Timestamp
+        const timeCell = document.createElement('td');
+        timeCell.textContent = new Date(item.timeStamp).toLocaleString('en-UK', {
+          hour12: true,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        row.appendChild(timeCell);
+
+        // System
+        const sysCell = document.createElement('td');
+        sysCell.textContent = item.sys || 'Unknown';
+        row.appendChild(sysCell);
+
+        // Refrigerator
+        const refCell = document.createElement('td');
+        refCell.textContent = item.ref?.status ?? '-';
+        row.appendChild(refCell);
+
+        // Lighting
+        const lightCell = document.createElement('td');
+        lightCell.textContent = item.light?.status ?? '-';
+        row.appendChild(lightCell);
+
+        // Occupancy
+        const occCell = document.createElement('td');
+        occCell.textContent = item.occ?.status ?? '-';
+        row.appendChild(occCell);
+
+        // HVAC Status
+        const hvacStatusCell = document.createElement('td');
+        hvacStatusCell.textContent = item.hvac?.status ?? '-';
+        row.appendChild(hvacStatusCell);
+
+        tableBody.appendChild(row);
+      });
+    }
+
+    // ===========================
+    // 4. HVAC 圖表更新
+    // ===========================
+    function updateHvacChart(data) {
+      // 先按時間排正序
+      data.sort((a, b) => new Date(a.timeStamp) - new Date(b.timeStamp));
+
+      const labels = data.map(item =>
+        new Date(item.timeStamp).toLocaleTimeString('en-UK', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })
+      );
+      const hvacValues = data.map(item => item.hvac?.val);
+
+      if (!hvacChart) {
+        hvacChart = new Chart(document.getElementById('chartHvac').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'HVAC Temperature',
+                data: hvacValues,
+                borderColor: 'blue',
+                fill: false
+              }
+            ]
+          }
+        });
+      } else {
+        hvacChart.data.labels = labels;
+        hvacChart.data.datasets[0].data = hvacValues;
+        hvacChart.update();
+      }
+    }
+
+    // ===========================
+    // 5. 動態更新 Power Consumption
+    // ===========================
+    function updatePowerConsumption(newStates) {
+      // 判斷裝置狀態是否改變
+      const changedLight  = (newStates.light  !== lastDeviceStates.light);
+      const changedCooler = (newStates.cooler !== lastDeviceStates.cooler);
+      const changedHeater = (newStates.heater !== lastDeviceStates.heater);
+
+      // 計算目標功率 (基礎280 + light?2 + cooler?250 + heater?350)
+      let target = baseRefrigeration;
+      if (newStates.light)  target += devicePower.light;
+      if (newStates.cooler) target += devicePower.cooler;
+      if (newStates.heater) target += devicePower.heater;
+
+      // 若都沒改變就不動畫
+      if (!changedLight && !changedCooler && !changedHeater) {
+        return;
+      }
+
+      // 動畫時間：如果 cooler/heater 變化，10秒；否則(只有light)3秒
+      let duration = 3000; // 預設 3秒
+      if (changedCooler || changedHeater) {
+        duration = 10000;
+      }
+
+      // 執行動畫
+      animatePowerConsumption(target, duration);
+
+      // 更新紀錄
+      lastDeviceStates = { ...newStates };
+    }
+
+    // (A) 在指定秒數內，將 currentPower 線性漸進至 target
+    function animatePowerConsumption(target, durationMs) {
+      const startValue = currentPower;
+      const diff = target - startValue;
+      const steps = 50;  // 分割數量(越多越平滑)
+      const intervalTime = durationMs / steps;
+
+      let currentStep = 0;
+      const interval = setInterval(() => {
+        currentStep++;
+        const progress = currentStep / steps;
+        currentPower = startValue + diff * progress;
+
+        document.getElementById("statusPower").textContent =
+          currentPower.toFixed(1) + " kW";
+
+        // 結束條件
+        if (currentStep >= steps) {
+          clearInterval(interval);
+          currentPower = target;
+          document.getElementById("statusPower").textContent =
+            currentPower.toFixed(1) + " kW";
+        }
+      }, intervalTime);
+    }
+
+    // ===========================
+    // 6. Toggle 指令 (可選)
+    // ===========================
+    async function sendToggleCommand(toggleCommand) {
+      try {
+        document.getElementById("statusAction").textContent = "Sending command...";
+
+        const payload = {
+          command: {
+            toggleCommand
+          }
+        };
+
+        const response = await fetch(controlUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}`);
+        }
+
+        document.getElementById("statusAction").textContent = "Command sent successful";
+
+      } catch (error) {
+        console.error('Error sending command:', error);
+        document.getElementById("statusAction").textContent = "Failed to send command";
+      }
+    }
+
+    // ===========================
+    // 7. 閾值 (Threshold) 更新 (可選)
+    // ===========================
+    async function sendThreshold(device, thresholdValue) {
+      try {
+        document.getElementById("statusAction").textContent = `Updating threshold... (${device}:${thresholdValue})`;
+
+        let finalThValue;
+        if (device === 'hvac') {
+          const parts = thresholdValue.split(',');
+          finalThValue = parts.map(p => parseFloat(p.trim()));
+        } else {
+          finalThValue = thresholdValue;
+        }
+
+        const payload = {
+          command: {
+            [device]: {
+              th: finalThValue
+            }
+          }
+        };
+
+        const response = await fetch(controlUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}`);
+        }
+
+        document.getElementById("statusAction").textContent = "Threshold updated successfully";
+      } catch (error) {
+        console.error('Error sending threshold:', error);
+        document.getElementById("statusAction").textContent = "Failed to update threshold";
+      }
+    }
+
+    function updateThreshold(device, inputId) {
+      const inputEl = document.getElementById(inputId);
+      const thresholdValue = inputEl.value.trim();
+      if (!thresholdValue) {
+        alert('Please enter the threshold value');
+        return;
+      }
+      sendThreshold(device, thresholdValue);
+      inputEl.value = '';
+    }
+
+    // ===========================
+    // 8. 下載 CSV
+    // ===========================
+    async function downloadCSV() {
+      try {
+        document.getElementById("statusAction").textContent = "Downloading...";
+
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}`);
+        }
+        const allData = await response.json();
+
+        const csvContent = jsonToCsv(allData);
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'iot_data.csv');
+        document.body.appendChild(link);
+        link.click();
+
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        document.getElementById("statusAction").textContent = "CSV download complete";
+      } catch (error) {
+        console.error("Error downloading CSV:", error);
+        document.getElementById("statusAction").textContent = "CSV download failed";
+      }
+    }
+
+    function jsonToCsv(jsonArray) {
+      if (!jsonArray || !jsonArray.length) {
+        return '';
+      }
+
+      const headers = [
+        'timeStamp',
+        'sys',
+        'ref_val',
+        'ref_status',
+        'light_val',
+        'light_status',
+        'hvac_val',
+        'hvac_status',
+        'occ_val',
+        'occ_status'
+      ];
+
+      const csvRows = [];
+      csvRows.push(headers.join(','));
+
+      for (const item of jsonArray) {
+        const rowData = [
+          item.timeStamp || '',
+          item.sys || '',
+          item.ref?.val ?? '',
+          item.ref?.status ?? '',
+          item.light?.val ?? '',
+          item.light?.status ?? '',
+          item.hvac?.val ?? '',
+          item.hvac?.status ?? '',
+          item.occ?.val ?? '',
+          item.occ?.status ?? ''
+        ];
+        csvRows.push(rowData.join(','));
+      }
+
+      return csvRows.join('\n');
+    }
+
+    // ===========================
+    // 9. 頁面載入後自動執行
+    // ===========================
+    window.addEventListener('load', () => {
+      // 一開始就顯示「280 kW」(Refrigeration base)
+      currentPower = baseRefrigeration;
+      document.getElementById("statusPower").textContent = currentPower + " kW";
+
+      // 先抓一次後端資料並啟動輪詢
+      fetchDataAndUpdate();
+      // 每 3 秒更新一次
+      setInterval(fetchDataAndUpdate, 3000);
+    });
+  </script>
+</body>
+</html>

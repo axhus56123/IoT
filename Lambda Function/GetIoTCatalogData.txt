@@ -1,0 +1,88 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { QueryCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+
+const client = new DynamoDBClient({ region: "eu-west-3" });
+const docClient = DynamoDBDocumentClient.from(client);
+
+export const handler = async (event) => {
+  console.log("Received event:", JSON.stringify(event, null, 2));
+
+  const serialNumber = event.queryStringParameters?.serialNumber || "MKR1010-1"; // 預設設備 ID
+
+  try {
+    // ✅ 修正 QueryCommand 參數格式
+    const params = {
+      TableName: "IoTCatalog",
+      KeyConditionExpression: "#sn = :sn",
+      ExpressionAttributeNames: {
+        "#sn": "serialNumber",  // Partition Key
+      },
+      ExpressionAttributeValues: {
+        ":sn": serialNumber,  // ✅ 直接使用 string，讓 SDK 自動轉換
+      },
+      ScanIndexForward: false, // **降序排列，確保最新的數據在最前**
+      //Limit: 30, // **取得最新 30 筆**
+    };
+
+    const result = await docClient.send(new QueryCommand(params));
+    console.log("DynamoDB Response:", JSON.stringify(result, null, 2));
+
+    if (!result.Items || result.Items.length === 0) {
+      console.error(`No data found for serialNumber: ${serialNumber}`);
+      return {
+        statusCode: 404,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+        body: JSON.stringify({ message: "No data found" }),
+      };
+    }
+
+    // ✅ 修正 JSON 解析方式
+    const parsedItems = result.Items.map((item) => ({
+      serialNumber: item.serialNumber || "N/A",
+      timeStamp: item.timeStamp || "N/A",
+      sys: item.sys || "N/A",
+      hvac: safeJsonParse(item.hvac, {}), // 解析 JSON
+      light: safeJsonParse(item.light, {}),
+      occ: safeJsonParse(item.occ, {}),
+      ref: safeJsonParse(item.ref, {}),
+    }));
+
+    console.log("Parsed Items:", JSON.stringify(parsedItems, null, 2));
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+      body: JSON.stringify(parsedItems),
+    };
+  } catch (error) {
+    console.error("Error querying DynamoDB:", error);
+    return {
+      statusCode: 500,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+      body: JSON.stringify({ message: "Internal server error", error: error.message }),
+    };
+  }
+};
+
+// **安全解析 JSON**
+function safeJsonParse(value, defaultValue) {
+  try {
+    return value ? JSON.parse(value) : defaultValue;
+  } catch (error) {
+    console.error("JSON parse error:", error, "String:", value);
+    return defaultValue;
+  }
+}
